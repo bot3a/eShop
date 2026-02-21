@@ -40,21 +40,39 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 // Special handling: Stripe webhook needs raw body BEFORE any body parsing middleware
 // Apply raw body parser conditionally only to webhook endpoint
-app.use(
-  "/api/v1/payment",
-  (req, res, next) => {
-    if (req.originalUrl === "/api/v1/payment/webhook") {
-      express.raw({ type: "application/json" })(req, res, next);
-    } else {
-      express.json()(req, res, next); // parse json for non-webhook routes
-    }
-  },
-  PaymentRoutes,
+
+// 1️⃣ Webhook FIRST (raw body)
+app.post(
+  "/api/v1/payment/webhook",
+  express.raw({ type: "application/json" }),
+  webhookHandler,
 );
 
-// Security & CORS
+// 2️⃣ Then normal JSON parser for everything else
+app.use(express.json());
+
+// 3️⃣ Then your other routes
+app.use("/api/v1/payment", PaymentRoutes);
+
+// 4️⃣ Security & CORS
 app.use(helmet());
 app.use(cors());
+
+// app.use(
+//   "/api/v1/payment",
+//   (req, res, next) => {
+//     if (req.originalUrl === "/api/v1/payment/webhook") {
+//       express.raw({ type: "application/json" })(req, res, next);
+//     } else {
+//       express.json()(req, res, next); // parse json for non-webhook routes
+//     }
+//   },
+//   PaymentRoutes,
+// );
+
+// // Security & CORS
+// app.use(helmet());
+// app.use(cors());
 
 // Logging
 if (["development", "production"].includes(process.env.NODE_ENV)) {
