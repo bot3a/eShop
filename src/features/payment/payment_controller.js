@@ -96,15 +96,29 @@ const PaymentController = {
         });
 
         // Reduce product stock
+        // for (const item of orderItems) {
+        //   await Product.findByIdAndUpdate(item.product, {
+        //     $inc: { stock: -item.quantity },
+        //   });
+        // }
         for (const item of orderItems) {
           await Product.findByIdAndUpdate(item.product, {
-            $inc: { stock: -item.quantity },
+            $inc: {
+              stock: -item.quantity, // reduce stock
+              units_sold: item.quantity, // increase units sold
+            },
           });
         }
-        const cart = await Cart.findOne({ user: req.user.id });
 
-        cart.items = [];
-        await cart.save();
+        // const cart = await Cart.findOne({ user: req.user.id });
+        const cart = await Cart.findOne({ user: userInfo.userId });
+        if (cart) {
+          cart.items = [];
+          await cart.save();
+        }
+
+        // cart.items = [];
+        // await cart.save();
         console.log("Order created successfully:", order._id);
 
         // Notify user
