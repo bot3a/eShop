@@ -4,17 +4,18 @@ dotenv.config({ path: "./.env" });
 import { connectDB } from "./common/config/db.js";
 import "./common/config/firebase.js";
 
-import express, { json, urlencoded } from "express";
+import express from "express";
 import path from "path";
 import morgan from "morgan";
 import helmet from "helmet";
-import AppError from "./common/utils/appError.js";
-import globalErrorHandler from "./common/controllers/error_controller.js";
-import Stripe from "stripe";
 import cors from "cors";
 import mongoSanitize from "mongo-sanitize";
+import Stripe from "stripe";
 
-// Routes & controllers
+import AppError from "./common/utils/appError.js";
+import globalErrorHandler from "./common/controllers/error_controller.js";
+
+// Routes
 import AuthRoutes from "./features/auth/auth_routes.js";
 import UserRoutes from "./features/user/user_routes.js";
 import CategoryRoutes from "./features/category/category_routes.js";
@@ -38,22 +39,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-09-30.clover",
 });
 
-// Special handling: Stripe webhook needs raw body BEFORE any body parsing middleware
-// Apply raw body parser conditionally only to webhook endpoint
-
-app.use(
-  "/api/v1/payment",
-  (req, res, next) => {
-    if (req.originalUrl === "/api/v1/payment/webhook") {
-      express.raw({ type: "application/json" })(req, res, next);
-    } else {
-      express.json()(req, res, next); // parse json for non-webhook routes
-    }
-  },
-  PaymentRoutes,
-);
-
-// Security & CORS
+// Security headers
 app.use(helmet());
 app.use(cors());
 
@@ -62,26 +48,27 @@ if (["development", "production"].includes(process.env.NODE_ENV)) {
   app.use(morgan("dev"));
 }
 
-// Sanitize requests (skip for webhook since it uses raw body)
+// Body parsers (for JSON & URL-encoded)
+// Important: webhook must come before JSON parser middleware
+app.use("/api/v1/payment/webhook", express.raw({ type: "application/json" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Sanitize all inputs (skip raw body for webhook)
 app.use((req, _res, next) => {
-  // Skip sanitization for webhook since it's already parsed as raw
-  if (req.originalUrl === "/api/v1/payment/webhook") {
-    return next();
-  }
+  if (req.originalUrl === "/api/v1/payment/webhook") return next();
 
   req.body = mongoSanitize(req.body);
   req.params = mongoSanitize(req.params);
-  if (typeof req.query === "object" && req.query !== null) {
+
+  if (req.query && typeof req.query === "object") {
     Object.keys(req.query).forEach(
       (key) => (req.query[key] = mongoSanitize(req.query[key])),
     );
   }
+
   next();
 });
-
-// // JSON & URL-encoded parsers for other routes
-// app.use(json());
-// app.use(urlencoded({ extended: true }));
 
 // Health check
 app.get("/api/v1/health", (_req, res) => res.send("Server is running!"));
@@ -99,19 +86,19 @@ app.use("/api/v1/notification", NotificationRoutes);
 app.use("/api/v1/fcm", FCMRoutes);
 app.use("/api/v1/address", AddressRoutes);
 app.use("/api/v1/upload", UploadRoutes);
+app.use("/api/v1/payment", PaymentRoutes); // Webhook is already handled above
 app.use("/api/v1/tracking", TrackingRoutes);
 
 // SPA fallback for production
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "client/build")));
 
-  // No path, just middleware for unmatched routes
-  app.use((req, res, next) => {
+  app.use((req, res, _next) => {
     res.sendFile(path.join(__dirname, "client/build", "index.html"));
   });
 }
 
-// 404 handler (must be after all routes including SPA fallback)
+// 404 handler (after all routes)
 app.use((_req, _res, next) => {
   next(new AppError("Cannot find route.", 404));
 });
@@ -119,12 +106,12 @@ app.use((_req, _res, next) => {
 // Global error handler
 app.use(globalErrorHandler);
 
-// Start server AFTER all middleware/routes are registered
+// Start server
 const startServer = async () => {
   try {
     await connectDB();
     app.listen(PORT, () => {
-      console.log(`Server is up and running on port ${PORT}`);
+      console.log(`Server is running on port ${PORT}`);
     });
   } catch (err) {
     console.error("Failed to start server:", err);
