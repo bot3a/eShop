@@ -7,11 +7,7 @@ import Order from "./../order/order_model.js";
 import Address from "../address/address_model.js";
 import { sendCustomNotificationService } from "./../../common/config/notification_service.js";
 
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-09-30.clover",
-});
+import { stripe } from "./../../common/config/stripe.js";
 
 const PaymentController = {
   handleWebhook: async (req, res, next) => {
@@ -95,12 +91,6 @@ const PaymentController = {
           status: "pending",
         });
 
-        // Reduce product stock
-        // for (const item of orderItems) {
-        //   await Product.findByIdAndUpdate(item.product, {
-        //     $inc: { stock: -item.quantity },
-        //   });
-        // }
         for (const item of orderItems) {
           await Product.findByIdAndUpdate(item.product, {
             $inc: {
@@ -110,7 +100,6 @@ const PaymentController = {
           });
         }
 
-        // const cart = await Cart.findOne({ user: req.user.id });
         const cart = await Cart.findOne({ user: userInfo.userId });
         if (cart) {
           cart.items = [];
