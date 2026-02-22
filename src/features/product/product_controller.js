@@ -2,9 +2,7 @@ import catchAsync from "../../common/utils/catchAsync.js";
 import Product from "./product_model.js";
 import AppError from "./../../common/utils/appError.js";
 import factory from "./../../common/controllers/handler_controller.js";
-import mongoose from "mongoose";
 import cloudinary from "../../common/config/cloudinary.js";
-import Fuse from "fuse.js";
 import APIFeatures from "./../../common/utils/api_features.js";
 
 const ProductController = {
@@ -68,7 +66,7 @@ const ProductController = {
       stock,
       discount,
       is_featured,
-      categoryId,
+      categoryId, // This comes from req.body
     } = req.body;
 
     if (!req.files || req.files.length === 0) {
@@ -80,15 +78,15 @@ const ProductController = {
 
     // Upload images to Cloudinary
     const uploadResults = await Promise.all(
-      req.files.map((file) =>
-        cloudinary.v2.uploader.upload(file.path, { folder: "products" }),
+      req.files.map(
+        (file) => cloudinary.uploader.upload(file.path, { folder: "products" }), // Remove .v2
       ),
     );
     const imageUrls = uploadResults.map((r) => r.secure_url);
 
     // Create product
     const product = await Product.create({
-      category: categoryId, // use categoryId directly from body
+      category: categoryId,
       title,
       description,
       price,
@@ -106,53 +104,65 @@ const ProductController = {
     });
   }),
 
-  // validateProductFields: (req, res, next) => {
-  //   let {
-  //     title,
-  //     description,
-  //     price,
-  //     stock,
-  //     discount,
-  //     is_featured,
-  //     categoryId,
-  //     variants,
-  //   } = req.body;
+  // ✅ Update product
+  updateProduct: catchAsync(async (req, res, next) => {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return next(new AppError("Product not found", 404));
+    }
 
-  //   if (
-  //     !title ||
-  //     !description ||
-  //     !price ||
-  //     !stock ||
-  //     discount == null ||
-  //     is_featured == null
-  //   ) {
-  //     return next(new AppError("All fields are required", 400));
-  //   }
+    const {
+      title,
+      description,
+      price,
+      stock,
+      discount,
+      is_featured,
+      categoryId, // Add this to allow category updates
+    } = req.body;
 
-  //   price = Number(price);
-  //   stock = Number(stock);
-  //   discount = Number(discount);
-  //   is_featured = is_featured === "true" || is_featured === true;
+    if (title) product.title = title;
+    if (description) product.description = description;
+    if (price !== undefined) product.price = Number(price);
+    if (discount !== undefined) product.discount = Number(discount);
+    if (stock !== undefined) product.stock = Number(stock);
+    if (is_featured !== undefined) product.is_featured = Boolean(is_featured);
 
-  //   if (isNaN(price) || price < 0)
-  //     return next(new AppError("Invalid price", 400));
-  //   if (isNaN(discount) || discount < 0 || discount > 100)
-  //     return next(new AppError("Discount must be between 0-100", 400));
-  //   if (isNaN(stock) || stock < 0)
-  //     return next(new AppError("Invalid stock", 400));
-  //   if (typeof is_featured !== "boolean")
-  //     return next(new AppError("is_featured must be true or false", 400));
-  //   req.body.title = title;
-  //   req.body.description = description;
-  //   req.body.price = price;
-  //   req.body.stock = stock;
-  //   req.body.discount = discount;
-  //   req.body.is_featured = is_featured;
-  //   req.body.variants = variants;
+    // Handle category update - make it consistent with create
+    if (categoryId) {
+      product.category = categoryId;
+    } else if (req.category) {
+      // Fallback to middleware if you have it
+      product.category = req.category._id;
+    }
 
-  //   next();
-  // },
+    // Handle images
+    if (req.files && req.files.length > 0) {
+      if (req.files.length > 3) {
+        return next(new AppError("Maximum 3 images allowed.", 400));
+      }
 
+      const uploadPromises = req.files.map((file) =>
+        cloudinary.uploader.upload(file.path, {
+          // Remove .v2
+          folder: "products",
+        }),
+      );
+
+      const uploadResults = await Promise.all(uploadPromises);
+      product.images = uploadResults.map((result) => result.secure_url);
+    }
+
+    await product.save();
+    await product.populate({ path: "category", select: "title" });
+
+    res.status(200).json({
+      status: "success",
+      data: product,
+    });
+  }),
+
+  // // ✅ Create product
   // createProduct: catchAsync(async (req, res, next) => {
   //   const {
   //     title,
@@ -171,30 +181,71 @@ const ProductController = {
   //     return next(new AppError("Maximum 3 images allowed.", 400));
   //   }
 
-  //   const uploadPromises = req.files.map((file) =>
-  //     cloudinary.v2.uploader.upload(file.path, {
-  //       folder: "products",
-  //     }),
+  //   // Upload images to Cloudinary
+  //   const uploadResults = await Promise.all(
+  //     req.files.map((file) =>
+  //       cloudinary.v2.uploader.upload(file.path, { folder: "products" }),
+  //     ),
   //   );
+  //   const imageUrls = uploadResults.map((r) => r.secure_url);
 
-  //   const uploadResults = await Promise.all(uploadPromises);
-  //   const imageUrls = uploadResults.map((result) => result.secure_url);
-
+  //   // Create product
   //   const product = await Product.create({
-  //     category: req.body.categoryId,
+  //     category: categoryId, // use categoryId directly from body
   //     title,
   //     description,
-  //     price: Number(price),
-  //     discount: discount ? Number(discount) : 0,
-  //     stock: stock ? Number(stock) : 0,
-  //     is_featured: Boolean(is_featured),
+  //     price,
+  //     discount,
+  //     stock,
+  //     is_featured,
   //     images: imageUrls,
   //   });
 
   //   await product.populate({ path: "category", select: "title" });
 
-  //   /* 6️⃣ Response */
   //   res.status(201).json({
+  //     status: "success",
+  //     data: product,
+  //   });
+  // }),
+
+  // updateProduct: catchAsync(async (req, res, next) => {
+  //   const product = await Product.findById(req.params.id);
+  //   if (!product) {
+  //     return next(new AppError("Product not found", 404));
+  //   }
+
+  //   const { title, description, price, stock, discount, is_featured } =
+  //     req.body;
+
+  //   if (title) product.title = title;
+  //   if (description) product.description = description;
+  //   if (price !== undefined) product.price = Number(price);
+  //   if (discount !== undefined) product.discount = Number(discount);
+  //   if (stock !== undefined) product.stock = Number(stock);
+  //   if (is_featured !== undefined) product.is_featured = Boolean(is_featured);
+  //   if (req.category) product.category = req.category._id;
+
+  //   // Handle images
+  //   if (req.files && req.files.length > 0) {
+  //     if (req.files.length > 3) {
+  //       return next(new AppError("Maximum 3 images allowed.", 400));
+  //     }
+
+  //     const uploadPromises = req.files.map((file) =>
+  //       cloudinary.v2.uploader.upload(file.path, {
+  //         folder: "products",
+  //       }),
+  //     );
+
+  //     const uploadResults = await Promise.all(uploadPromises);
+  //     product.images = uploadResults.map((result) => result.secure_url);
+  //   }
+
+  //   await product.save();
+  //   await product.populate({ path: "category", select: "title" });
+
+  //   res.status(200).json({
   //     status: "success",
   //     data: product,
   //   });
@@ -283,44 +334,6 @@ const ProductController = {
   }),
 
   deleteProduct: factory.deleteOne(Product),
-
-  updateProduct: catchAsync(async (req, res, next) => {
-    const product = req.product;
-
-    const { title, description, price, stock, discount, is_featured } =
-      req.body;
-
-    if (title) product.title = title;
-    if (description) product.description = description;
-    if (price !== undefined) product.price = Number(price);
-    if (discount !== undefined) product.discount = Number(discount);
-    if (stock !== undefined) product.stock = Number(stock);
-    if (is_featured !== undefined) product.is_featured = Boolean(is_featured);
-    if (req.category) product.category = req.category._id;
-
-    if (req.files && req.files.length > 0) {
-      if (req.files.length > 3) {
-        return next(new AppError("Maximum 3 images allowed.", 400));
-      }
-
-      const uploadPromises = req.files.map((file) =>
-        cloudinary.v2.uploader.upload(file.path, {
-          folder: "products",
-        }),
-      );
-
-      const uploadResults = await Promise.all(uploadPromises);
-      product.images = uploadResults.map((result) => result.secure_url);
-    }
-
-    await product.save();
-    await product.populate({ path: "category", select: "title" });
-
-    res.status(200).json({
-      status: "success",
-      data: product,
-    });
-  }),
 
   fetchProductByCategory: catchAsync(async (req, res, next) => {
     const categoryId = req.params.id;

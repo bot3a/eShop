@@ -7,7 +7,11 @@ const OrderRoutes = Router();
 OrderRoutes.use(AuthController.protect);
 
 OrderRoutes.post("/me", OrderController.createOrder);
-OrderRoutes.get("/me", AuthController.protect, OrderController.getAllOrders);
+OrderRoutes.get(
+  "/getAllOrders",
+  AuthController.protect,
+  OrderController.getAllOrders,
+);
 OrderRoutes.get(
   "/:orderId",
   AuthController.protect,
