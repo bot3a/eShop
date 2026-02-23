@@ -103,7 +103,7 @@ const orderSchema = new Schema(
   mongooseOptions, // timestamps: true
 );
 
-orderSchema.index({ user: 1, status: 1, isPaid: 1 });
+orderSchema.index({ "userInfo.userId": 1, status: 1, isPaid: 1 });
 
 const Order = model("Order", orderSchema);
 export default Order;

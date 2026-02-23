@@ -161,15 +161,42 @@ const OrderController = {
     }
   },
 
-  getAllOrders: async (req, res, next) => {
-    console.log("Logged in user:", req.user);
-
-    // ✅ Filter by embedded userInfo.userId
+  getMyOrders: async (req, res, next) => {
     const orders = await Order.find({ "userInfo.userId": req.user._id }).sort({
       createdAt: -1,
     });
 
-    console.log("Orders found:", orders);
+    const orderIds = orders.map((order) => order._id);
+
+    const reviews = await Review.find({ orderId: { $in: orderIds } });
+    const reviewedOrderIds = new Set(
+      reviews.map((review) => review.orderId.toString()),
+    );
+
+    const ordersWithReviewStatus = orders.map((order) => {
+      const reviewed = reviewedOrderIds.has(order._id.toString());
+
+      return {
+        ...order.toObject(),
+        hasReviewed: reviewed,
+        canReview: order.status === "delivered" && !reviewed,
+      };
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: ordersWithReviewStatus,
+    });
+  },
+
+  getAllOrders: async (req, res, next) => {
+    // console.log("Logged in user:", req.user);
+
+    const orders = await Order.find({}).sort({
+      created_at: -1,
+    });
+
+    // console.log("Orders found:", orders);
 
     const orderIds = orders.map((order) => order._id);
 
@@ -197,7 +224,7 @@ const OrderController = {
   getOrderById: async (req, res, next) => {
     try {
       const { orderId } = req.params; // must match route
-      console.log("Fetching order ID:", orderId);
+      // console.log("Fetching order ID:", orderId);
 
       const order = await Order.findOne({
         _id: orderId,
@@ -223,12 +250,62 @@ const OrderController = {
     }
   },
 
+  // updateOrderStatus: async (req, res, next) => {
+  //   try {
+  //     const { orderId } = req.params;
+  //     const { status } = req.body; // pending | confirmed | shipped | delivered | cancelled
+
+  //     // Validate status
+  //     const allowedStatuses = [
+  //       "pending",
+  //       "confirmed",
+  //       "shipped",
+  //       "delivered",
+  //       "cancelled",
+  //     ];
+  //     if (!allowedStatuses.includes(status)) {
+  //       return res.status(400).json({ message: "Invalid status value." });
+  //     }
+
+  //     // Find the order
+  //     const order = await Order.findById(orderId);
+  //     if (!order) {
+  //       return res.status(404).json({ message: "Order not found." });
+  //     }
+
+  //     // Update timestamps based on status
+  //     if (status === "shipped" && order.status !== "shipped") {
+  //       order.shippedAt = new Date();
+  //     } else if (status === "delivered" && order.status !== "delivered") {
+  //       order.deliveredAt = new Date();
+  //     }
+
+  //     // Update status
+  //     order.status = status;
+
+  //     // Save updated order
+  //     const updatedOrder = await order.save();
+
+  //     // Check if a review exists for this order
+  //     const review = await Review.findOne({ orderId: updatedOrder._id });
+  //     const hasReviewed = !!review;
+  //     const canReview = updatedOrder.status === "delivered" && !hasReviewed;
+
+  //     // Return response including dynamic review flags
+  //     res.status(200).json({
+  //       status: "success",
+  //       data: { ...updatedOrder.toObject(), hasReviewed, canReview },
+  //     });
+  //   } catch (error) {
+  //     next(error);
+  //   }
+  // },
+
   updateOrderStatus: async (req, res, next) => {
     try {
       const { orderId } = req.params;
-      const { status } = req.body; // pending | confirmed | shipped | delivered | cancelled
+      const { status } = req.body;
 
-      // Validate status
       const allowedStatuses = [
         "pending",
         "confirmed",
@@ -236,43 +313,79 @@ const OrderController = {
         "delivered",
         "cancelled",
       ];
+
       if (!allowedStatuses.includes(status)) {
         return res.status(400).json({ message: "Invalid status value." });
       }
 
-      // Find the order
       const order = await Order.findById(orderId);
       if (!order) {
         return res.status(404).json({ message: "Order not found." });
       }
 
-      // Update timestamps based on status
-      if (status === "shipped" && order.status !== "shipped") {
+      const previousStatus = order.status;
+
+      // 🔹 Handle shipped timestamp
+      if (status === "shipped" && previousStatus !== "shipped") {
         order.shippedAt = new Date();
-      } else if (status === "delivered" && order.status !== "delivered") {
-        order.deliveredAt = new Date();
       }
 
-      // Update status
+      // 🔥 CASE 1: Move TO delivered → Reduce stock
+      if (status === "delivered" && previousStatus !== "delivered") {
+        order.deliveredAt = new Date();
+
+        for (const item of order.orderItems) {
+          await Product.findByIdAndUpdate(item.product, {
+            $inc: {
+              stock: -item.quantity,
+              units_sold: item.quantity,
+            },
+          });
+        }
+      }
+
+      // 🔥 CASE 2: Move FROM delivered → cancelled → Restore stock
+      if (previousStatus === "delivered" && status === "cancelled") {
+        for (const item of order.orderItems) {
+          await Product.findByIdAndUpdate(item.product, {
+            $inc: {
+              stock: item.quantity,
+              units_sold: -item.quantity,
+            },
+          });
+        }
+      }
+
       order.status = status;
 
-      // Save updated order
       const updatedOrder = await order.save();
 
-      // Check if a review exists for this order
-      const review = await Review.findOne({ orderId: updatedOrder._id });
-      const hasReviewed = !!review;
-      const canReview = updatedOrder.status === "delivered" && !hasReviewed;
+      // 🔹 Review flags
+      const reviews = await Review.find({ orderId: updatedOrder._id });
 
-      // Return response including dynamic review flags
+      const reviewedProductIds = reviews.map((r) => r.product.toString());
+
+      const orderWithReviewFlags = updatedOrder.toObject();
+
+      orderWithReviewFlags.orderItems = orderWithReviewFlags.orderItems.map(
+        (item) => ({
+          ...item,
+          hasReviewed: reviewedProductIds.includes(item.product.toString()),
+          canReview:
+            updatedOrder.status === "delivered" &&
+            !reviewedProductIds.includes(item.product.toString()),
+        }),
+      );
+
       res.status(200).json({
         status: "success",
-        data: { ...updatedOrder.toObject(), hasReviewed, canReview },
+        data: orderWithReviewFlags,
       });
     } catch (error) {
       next(error);
     }
   },
+
   // updateOrderStatus: async (req, res, next) => {
   //   try {
   //     const { orderId } = req.params;

@@ -6,7 +6,10 @@ const OrderRoutes = Router();
 
 OrderRoutes.use(AuthController.protect);
 
-OrderRoutes.post("/me", OrderController.createOrder);
+OrderRoutes.route("/me")
+  .post(OrderController.createOrder)
+  .get(OrderController.getMyOrders);
+
 OrderRoutes.get(
   "/getAllOrders",
   AuthController.protect,

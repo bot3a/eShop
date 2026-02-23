@@ -36,48 +36,49 @@ const ReviewController = {
   }),
 
   createReview: catchAsync(async (req, res, next) => {
-    const user = req.user; // authenticated user
+    const user = req.user;
     const { productId } = req.params;
     const { review, rating, orderId } = req.body;
 
-    // 1️⃣ Verify product exists
+    // 1️⃣ Check product exists
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    // 2️⃣ Verify order exists and is delivered
+    // 2️⃣ Check order exists
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    // Optional: verify order belongs to this user
-    if (order.userInfo.userId !== user.id) {
+    // 3️⃣ Verify order ownership (FIXED ObjectId compare)
+    if (order.userInfo.userId.toString() !== user.id.toString()) {
       return res
         .status(403)
         .json({ error: "Not authorized to review this order" });
     }
 
+    // 4️⃣ Must be delivered
     if (order.status !== "delivered") {
       return res
         .status(400)
         .json({ error: "Can only review delivered orders" });
     }
 
-    // 3️⃣ Verify product is part of the order
-    const productInOrder = order.orderItems.find(
+    // 5️⃣ Check product exists in order
+    const orderItem = order.orderItems.find(
       (item) => item.product.toString() === productId.toString(),
     );
 
-    if (!productInOrder) {
+    if (!orderItem) {
       return res.status(400).json({ error: "Product not found in this order" });
     }
 
-    // 4️⃣ Prevent duplicate review for the same product & order
+    // 6️⃣ Prevent duplicate review (FIXED FIELD)
     const existingReview = await Review.findOne({
       userId: user.id,
-      productId,
+      product: productId,
       orderId,
     });
 
@@ -87,7 +88,7 @@ const ReviewController = {
       });
     }
 
-    // 5️⃣ Create review
+    // 7️⃣ Create review
     const newReview = await Review.create({
       userId: user.id,
       product: productId,
@@ -98,25 +99,19 @@ const ReviewController = {
 
     await newReview.populate({ path: "userId", select: "name" });
 
-    // 6️⃣ Update product ratings
-    const reviews = await Review.find({ productId });
-    const totalRating = reviews.reduce((sum, rev) => sum + rev.rating, 0);
-    const updatedProduct = await Product.findByIdAndUpdate(
-      productId,
+    // 8️⃣ Mark order item as reviewed
+    await Order.updateOne(
       {
-        averageRating: totalRating / reviews.length,
-        totalReviews: reviews.length,
+        _id: orderId,
+        "orderItems.product": productId,
       },
-      { new: true, runValidators: true },
+      {
+        $set: {
+          "orderItems.$.isReviewed": true,
+        },
+      },
     );
 
-    if (!updatedProduct) {
-      // rollback review if product update fails
-      await Review.findByIdAndDelete(newReview._id);
-      return res.status(404).json({ error: "Product not found" });
-    }
-
-    // 7️⃣ Return response
     res.status(201).json({
       status: "success",
       data: {
