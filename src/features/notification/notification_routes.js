@@ -6,18 +6,18 @@ const NotificationRoutes = Router();
 
 NotificationRoutes.use(AuthController.protect);
 
-// Routes for logged-in user
 NotificationRoutes.get("/me", NotificationController.getUserNotifications);
 NotificationRoutes.patch(
   "/read/:notificationId",
   NotificationController.markNotificationRead,
 );
 
+NotificationRoutes.use(AuthController.restrictTo("admin"));
+
 NotificationRoutes.post(
   "/custom",
   NotificationController.sendCustomNotification,
 );
-
 NotificationRoutes.post(
   "/send-all",
   NotificationController.broadcastNotification,

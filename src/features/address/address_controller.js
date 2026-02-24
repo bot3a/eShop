@@ -5,7 +5,6 @@ import Address from "./address_model.js";
 const MAX_ADDRESS = 5;
 
 const AddressController = {
-  // Get all addresses for logged-in user
   getMyAddresses: catchAsync(async (req, res, next) => {
     const addresses = await Address.find({ user: req.user._id }).sort({
       createdAt: -1,
@@ -17,7 +16,6 @@ const AddressController = {
     });
   }),
 
-  // Admin: Get all addresses of all users
   getAllAddressForAdmin: catchAsync(async (req, res, next) => {
     const addresses = await Address.find().sort({ createdAt: -1 });
     res.status(200).json({
@@ -40,7 +38,6 @@ const AddressController = {
     });
   }),
 
-  // Create a new address
   createAddress: catchAsync(async (req, res, next) => {
     const addressCount = await Address.countDocuments({ user: req.user._id });
     if (addressCount >= MAX_ADDRESS) {
@@ -49,7 +46,6 @@ const AddressController = {
       );
     }
 
-    // Determine if this should be default
     const makeDefault = addressCount === 0 || req.body.is_default || false;
 
     if (makeDefault) {
@@ -60,21 +56,17 @@ const AddressController = {
       );
     }
 
-    // Attach user ID and default flag
     req.body.user = req.user._id;
     req.body.is_default = makeDefault;
 
-    // Create the new address
     const address = await Address.create(req.body);
 
-    // Return only the newly created address
     res.status(201).json({
       status: "success",
       data: address,
     });
   }),
 
-  // Update an address
   updateAddress: catchAsync(async (req, res, next) => {
     if (!req.body || Object.keys(req.body).length === 0) {
       return next(
@@ -89,9 +81,7 @@ const AddressController = {
 
     if (!address) return next(new AppError("Address not found", 404));
 
-    // Handle default address
     if (req.body.is_default) {
-      // If user wants this address to be default, unset default from all others
       await Address.updateMany(
         { user: req.user._id },
         { is_default: false },
@@ -99,7 +89,6 @@ const AddressController = {
       );
       address.is_default = true;
     } else {
-      // Ensure the user doesn't accidentally remove the default
       const defaultCount = await Address.countDocuments({
         user: req.user._id,
         is_default: true,
@@ -109,12 +98,10 @@ const AddressController = {
         address.is_default &&
         req.body.is_default === false
       ) {
-        // Prevent unsetting the only default
-        req.body.is_default = true; // force it to stay default
+        req.body.is_default = true;
       }
     }
 
-    // Update other fields
     const allowedFields = [
       "addressLine1",
       "addressLine2",
@@ -140,7 +127,6 @@ const AddressController = {
     });
   }),
 
-  // Delete an address
   deleteAddress: catchAsync(async (req, res, next) => {
     const address = await Address.findOneAndDelete({
       _id: req.params.id,
@@ -173,7 +159,6 @@ const AddressController = {
 
     if (!address) return next(new AppError("Address not found", 404));
 
-    // If already default, just return it
     if (address.is_default) {
       return res.status(200).json({
         status: "success",
@@ -181,62 +166,19 @@ const AddressController = {
       });
     }
 
-    // Unset all other default addresses
     await Address.updateMany(
       { user: req.user._id },
       { $set: { is_default: false } },
     );
 
-    // Set selected address as default
     address.is_default = true;
     await address.save();
 
-    // Return ONLY the updated address
     res.status(200).json({
       status: "success",
       data: address,
     });
   }),
-  // Set default address
-  // setDefaultAddress: catchAsync(async (req, res, next) => {
-  //   const address = await Address.findOne({
-  //     _id: req.params.id,
-  //     user: req.user._id,
-  //   });
-
-  //   if (!address) return next(new AppError("Address not found", 404));
-
-  //   // If already default, ignore
-  //   if (address.is_default) {
-  //     const allAddresses = await Address.find({ user: req.user._id }).sort({
-  //       createdAt: -1,
-  //     });
-  //     return res.status(200).json({
-  //       status: "success",
-  //       data: { address: address },
-  //     });
-  //   }
-
-  //   // Unset all other defaults
-  //   await Address.updateMany(
-  //     { user: req.user._id },
-  //     { $set: { is_default: false } },
-  //   );
-
-  //   // Set this one as default
-  //   address.is_default = true;
-  //   await address.save();
-
-  //   // Return updated addresses
-  //   const allAddresses = await Address.find({ user: req.user._id }).sort({
-  //     createdAt: -1,
-  //   });
-
-  //   res.status(200).json({
-  //     status: "success",
-  //     data: allAddresses,
-  //   });
-  // }),
 };
 
 export default AddressController;

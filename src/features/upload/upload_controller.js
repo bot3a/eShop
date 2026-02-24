@@ -11,7 +11,7 @@ export const uploadImages = catchAsync(async (req, res, next) => {
 
   for (const file of req.files) {
     const result = await cloudinary.v2.uploader.upload(file.path, {
-      folder: "products", // optional folder
+      folder: "products",
     });
     uploadedUrls.push(result.secure_url);
   }

@@ -57,7 +57,6 @@ const ProductController = {
     next();
   },
 
-  // ✅ Create product
   createProduct: catchAsync(async (req, res, next) => {
     const {
       title,
@@ -66,7 +65,7 @@ const ProductController = {
       stock,
       discount,
       is_featured,
-      categoryId, // This comes from req.body
+      categoryId,
     } = req.body;
 
     if (!req.files || req.files.length === 0) {
@@ -76,15 +75,13 @@ const ProductController = {
       return next(new AppError("Maximum 3 images allowed.", 400));
     }
 
-    // Upload images to Cloudinary
     const uploadResults = await Promise.all(
-      req.files.map(
-        (file) => cloudinary.uploader.upload(file.path, { folder: "products" }), // Remove .v2
+      req.files.map((file) =>
+        cloudinary.uploader.upload(file.path, { folder: "products" }),
       ),
     );
     const imageUrls = uploadResults.map((r) => r.secure_url);
 
-    // Create product
     const product = await Product.create({
       category: categoryId,
       title,
@@ -104,7 +101,6 @@ const ProductController = {
     });
   }),
 
-  // ✅ Update product
   updateProduct: catchAsync(async (req, res, next) => {
     const product = await Product.findById(req.params.id);
     if (!product) {
@@ -118,7 +114,7 @@ const ProductController = {
       stock,
       discount,
       is_featured,
-      categoryId, // Add this to allow category updates
+      categoryId,
     } = req.body;
 
     if (title) product.title = title;
@@ -128,15 +124,12 @@ const ProductController = {
     if (stock !== undefined) product.stock = Number(stock);
     if (is_featured !== undefined) product.is_featured = Boolean(is_featured);
 
-    // Handle category update - make it consistent with create
     if (categoryId) {
       product.category = categoryId;
     } else if (req.category) {
-      // Fallback to middleware if you have it
       product.category = req.category._id;
     }
 
-    // Handle images
     if (req.files && req.files.length > 0) {
       if (req.files.length > 3) {
         return next(new AppError("Maximum 3 images allowed.", 400));
@@ -144,7 +137,6 @@ const ProductController = {
 
       const uploadPromises = req.files.map((file) =>
         cloudinary.uploader.upload(file.path, {
-          // Remove .v2
           folder: "products",
         }),
       );
@@ -161,95 +153,6 @@ const ProductController = {
       data: product,
     });
   }),
-
-  // // ✅ Create product
-  // createProduct: catchAsync(async (req, res, next) => {
-  //   const {
-  //     title,
-  //     description,
-  //     price,
-  //     stock,
-  //     discount,
-  //     is_featured,
-  //     categoryId,
-  //   } = req.body;
-
-  //   if (!req.files || req.files.length === 0) {
-  //     return next(new AppError("At least 1 image is required.", 400));
-  //   }
-  //   if (req.files.length > 3) {
-  //     return next(new AppError("Maximum 3 images allowed.", 400));
-  //   }
-
-  //   // Upload images to Cloudinary
-  //   const uploadResults = await Promise.all(
-  //     req.files.map((file) =>
-  //       cloudinary.v2.uploader.upload(file.path, { folder: "products" }),
-  //     ),
-  //   );
-  //   const imageUrls = uploadResults.map((r) => r.secure_url);
-
-  //   // Create product
-  //   const product = await Product.create({
-  //     category: categoryId, // use categoryId directly from body
-  //     title,
-  //     description,
-  //     price,
-  //     discount,
-  //     stock,
-  //     is_featured,
-  //     images: imageUrls,
-  //   });
-
-  //   await product.populate({ path: "category", select: "title" });
-
-  //   res.status(201).json({
-  //     status: "success",
-  //     data: product,
-  //   });
-  // }),
-
-  // updateProduct: catchAsync(async (req, res, next) => {
-  //   const product = await Product.findById(req.params.id);
-  //   if (!product) {
-  //     return next(new AppError("Product not found", 404));
-  //   }
-
-  //   const { title, description, price, stock, discount, is_featured } =
-  //     req.body;
-
-  //   if (title) product.title = title;
-  //   if (description) product.description = description;
-  //   if (price !== undefined) product.price = Number(price);
-  //   if (discount !== undefined) product.discount = Number(discount);
-  //   if (stock !== undefined) product.stock = Number(stock);
-  //   if (is_featured !== undefined) product.is_featured = Boolean(is_featured);
-  //   if (req.category) product.category = req.category._id;
-
-  //   // Handle images
-  //   if (req.files && req.files.length > 0) {
-  //     if (req.files.length > 3) {
-  //       return next(new AppError("Maximum 3 images allowed.", 400));
-  //     }
-
-  //     const uploadPromises = req.files.map((file) =>
-  //       cloudinary.v2.uploader.upload(file.path, {
-  //         folder: "products",
-  //       }),
-  //     );
-
-  //     const uploadResults = await Promise.all(uploadPromises);
-  //     product.images = uploadResults.map((result) => result.secure_url);
-  //   }
-
-  //   await product.save();
-  //   await product.populate({ path: "category", select: "title" });
-
-  //   res.status(200).json({
-  //     status: "success",
-  //     data: product,
-  //   });
-  // }),
 
   getProductStats: catchAsync(async (req, res, next) => {
     const stats = await Product.aggregate([
@@ -296,20 +199,17 @@ const ProductController = {
   searchProducts: catchAsync(async (req, res, next) => {
     const queryToUse = req.apiInjectedQuery || req.query;
 
-    // Use the same base query as getAllProducts
     const baseQuery = Product.find();
 
     const features = new APIFeatures(baseQuery, queryToUse)
-      .search(["name", "slug", "description"]) // Search first
-      .filter() // Then apply other filters
+      .search(["name", "slug", "description"])
+      .filter()
       .sort()
       .limitFields()
       .paginate();
 
-    // Compute total count for pagination
     await features.computeTotalCount(Product);
 
-    // Execute query with population
     const doc = await features.query.populate({ path: "category" });
 
     res.status(200).json({
@@ -340,16 +240,14 @@ const ProductController = {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
 
-    // Get products with pagination
     const products = await Product.find({ category: categoryId })
-      .skip((page - 1) * limit) // Skip for pagination
-      .limit(limit); // Limit number of results per page
+      .skip((page - 1) * limit)
+      .limit(limit);
 
     if (!products.length) {
       return next(new AppError("No products found for this category.", 404));
     }
 
-    // Get total product count for the category
     const totalCount = await Product.countDocuments({ category: categoryId });
 
     return res.status(200).json({

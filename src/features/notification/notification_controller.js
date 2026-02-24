@@ -8,7 +8,6 @@ import FCMToken from "./fcm/fcm_model.js";
 import { sendPushNotification } from "../../common/config/fcmService.js";
 
 const NotificationController = {
-  // 📥 Get notifications for logged-in user
   getUserNotifications: catchAsync(async (req, res, next) => {
     const userId = req.user.id;
 
@@ -22,7 +21,6 @@ const NotificationController = {
     });
   }),
 
-  // ✅ Mark single notification as read
   markNotificationRead: catchAsync(async (req, res, next) => {
     const userId = req.user.id;
     const { notificationId } = req.params;
@@ -43,7 +41,6 @@ const NotificationController = {
     });
   }),
 
-  // 📤 Send custom notification to a user
   sendCustomNotification: catchAsync(async (req, res, next) => {
     const { userId, title, body, type } = req.body;
 
@@ -60,7 +57,6 @@ const NotificationController = {
       ? type
       : "general";
 
-    // 📝 Save notification
     const notification = await Notification.create({
       user: userId,
       title: safeTitle,
@@ -68,7 +64,6 @@ const NotificationController = {
       type: safeType,
     });
 
-    // 📲 Send push notification (non-blocking)
     const fcmTokenDoc = await FCMToken.findOne({ user: userId });
     if (fcmTokenDoc?.fcmToken) {
       try {
@@ -103,14 +98,11 @@ const NotificationController = {
       ? type
       : "general";
 
-    // 📌 Get all users
     const users = await User.find({});
 
-    // 📝 Save notifications and send push for each user
     const notifications = [];
 
     for (const user of users) {
-      // Save notification
       const notification = await Notification.create({
         user: user._id,
         title: safeTitle,
@@ -119,7 +111,6 @@ const NotificationController = {
       });
       notifications.push(notification);
 
-      // Send push notification if FCM token exists
       const fcmTokenDoc = await FCMToken.findOne({ user: user._id });
       if (fcmTokenDoc?.fcmToken) {
         try {

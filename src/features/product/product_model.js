@@ -6,7 +6,6 @@ import slugify from "slugify";
 //   color: { type: String, required: true },
 //   size: { type: String, required: true },
 // });
-
 const productSchema = new Schema(
   {
     title: {
@@ -90,19 +89,16 @@ const productSchema = new Schema(
 
 productSchema.index({ price: 1 });
 
-// Virtual for first image
 productSchema.virtual("index0Image").get(function () {
   return this.images && this.images.length > 0 ? this.images[0] : null;
 });
 
-// Virtual for reviews
 productSchema.virtual("reviews", {
   ref: "Review",
   foreignField: "product",
   localField: "_id",
 });
 
-// Auto-generate slug
 productSchema.pre("save", function (next) {
   if (this.title) {
     this.slug = slugify(this.title, { lower: true, strict: true });
@@ -110,17 +106,14 @@ productSchema.pre("save", function (next) {
   next();
 });
 
-// Populate category automatically
 productSchema.pre(/^find/, function (next) {
   this.populate({ path: "category", select: "title" });
   next();
 });
 
-// Update slug & validate discount on updates
 productSchema.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
 
-  // Slug update if title changes
   if (update.title || (update.$set && update.$set.title)) {
     const title = update.title ?? update.$set.title;
     const slug = slugify(title, { lower: true, strict: true });
@@ -131,7 +124,6 @@ productSchema.pre("findOneAndUpdate", function (next) {
     }
   }
 
-  // Discount validation
   const discount = update.discount ?? update.$set?.discount;
   if (discount != null) {
     if (discount < 0 || discount > 100) {

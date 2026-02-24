@@ -11,7 +11,7 @@ const formatProduct = (product) => ({
   discount: product.discount,
   stock: product.stock,
   index0Image: product.images?.[0] || null,
-  category: product.category?.title || null, // category as string
+  category: product.category?.title || null,
   rating_avg: product.ratings?.average || null,
 });
 
@@ -39,7 +39,7 @@ const WishListController = {
 
     let wishlist = await WishList.findOne({ user: userId });
 
-    let action; // to track if added or removed
+    let action;
     if (!wishlist) {
       wishlist = await WishList.create({
         user: userId,
@@ -64,7 +64,6 @@ const WishListController = {
       await wishlist.save();
     }
 
-    // Fetch the product that was toggled
     const toggledProduct = await Product.findById(productId).populate({
       path: "category",
       select: "title",
@@ -72,7 +71,7 @@ const WishListController = {
 
     return res.status(200).json({
       status: "success",
-      data: formatProduct(toggledProduct), // single product
+      data: formatProduct(toggledProduct),
       message: action,
     });
   }),
@@ -113,7 +112,6 @@ const WishListController = {
       await wishlist.save();
     }
 
-    // Populate ONLY the product that was added
     const addedProduct = await Product.findById(productId).populate({
       path: "category",
       select: "title",
@@ -121,7 +119,7 @@ const WishListController = {
 
     return res.status(201).json({
       status: "success",
-      data: formatProduct(addedProduct), // returns only the added product
+      data: formatProduct(addedProduct),
     });
   }),
 

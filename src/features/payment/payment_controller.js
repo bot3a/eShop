@@ -15,7 +15,6 @@ const PaymentController = {
     let event;
 
     try {
-      // Construct the Stripe event
       event = stripe.webhooks.constructEvent(
         req.body,
         sig,
@@ -56,7 +55,6 @@ const PaymentController = {
           return res.status(400).send("Invalid payment metadata");
         }
 
-        // Prevent duplicate orders
         const existingOrder = await Order.findOne({
           "paymentResult.id": paymentIntent.id,
         });
@@ -65,11 +63,10 @@ const PaymentController = {
           return res.json({ received: true });
         }
 
-        // Create the order
         const order = await Order.create({
-          userInfo, // embedded object
+          userInfo,
           orderItems,
-          shippingAddress, // embedded object
+          shippingAddress,
           paymentResult: {
             id: paymentIntent.id,
             status: "succeeded",
@@ -94,8 +91,8 @@ const PaymentController = {
         for (const item of orderItems) {
           await Product.findByIdAndUpdate(item.product, {
             $inc: {
-              stock: -item.quantity, // reduce stock
-              units_sold: item.quantity, // increase units sold
+              stock: -item.quantity,
+              units_sold: item.quantity,
             },
           });
         }
@@ -106,11 +103,8 @@ const PaymentController = {
           await cart.save();
         }
 
-        // cart.items = [];
-        // await cart.save();
         console.log("Order created successfully:", order._id);
 
-        // Notify user
         await sendCustomNotificationService({
           userId: userInfo.userId,
           safeTitle: "Order Created",
@@ -123,7 +117,6 @@ const PaymentController = {
       }
     }
 
-    // Always respond 200 to Stripe
     res.json({ received: true });
   },
 
@@ -131,7 +124,6 @@ const PaymentController = {
     try {
       const user = req.user;
 
-      // 1️⃣ Get default shipping address
       const shippingAddress = await Address.findOne({
         user: user._id,
         is_default: true,
@@ -141,7 +133,6 @@ const PaymentController = {
         return next(new AppError("Shipping address is required", 400));
       }
 
-      // 2️⃣ Get cart items
       const cart = await Cart.findOne({ user: user.id }).populate(
         "items.product",
       );
@@ -150,7 +141,6 @@ const PaymentController = {
         return next(new AppError("Cart is empty", 400));
       }
 
-      // 3️⃣ Prepare validated items and subtotal
       let subtotal = 0;
       const validatedItems = [];
 
@@ -195,7 +185,6 @@ const PaymentController = {
         return next(new AppError("Invalid order total", 400));
       }
 
-      // 5️⃣ Find or create Stripe customer
       let customer;
       if (user.stripeCustomerId) {
         customer = await stripe.customers.retrieve(user.stripeCustomerId);
@@ -210,7 +199,6 @@ const PaymentController = {
         });
       }
 
-      // Prepare clean shipping address
       const cleanShippingAddress = {
         address_line1: shippingAddress.address_line1,
         city: shippingAddress.city,
@@ -220,7 +208,6 @@ const PaymentController = {
         optional_remarks: shippingAddress.optional_remarks ?? "",
       };
 
-      // Prepare user info
       const userInfo = {
         userId: user._id,
         name: user.name,
@@ -228,21 +215,19 @@ const PaymentController = {
         phone: user.phone ?? "",
       };
 
-      // Create Stripe PaymentIntent
       const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(totalPrice * 100), // cents
+        amount: Math.round(totalPrice * 100),
         currency: "usd",
         customer: customer.id,
         automatic_payment_methods: { enabled: true },
         metadata: {
-          userInfo: JSON.stringify(userInfo), // embed user info
+          userInfo: JSON.stringify(userInfo),
           orderItems: JSON.stringify(validatedItems),
           shippingAddress: JSON.stringify(cleanShippingAddress),
           totalPrice: totalPrice.toFixed(2),
         },
       });
 
-      // 7️⃣ Return client secret
       res.status(200).json({
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
