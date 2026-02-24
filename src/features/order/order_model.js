@@ -100,7 +100,7 @@ const orderSchema = new Schema(
     shippedAt: Date,
     deliveredAt: Date,
   },
-  mongooseOptions, // timestamps: true
+  mongooseOptions,
 );
 
 orderSchema.index({ "userInfo.userId": 1, status: 1, isPaid: 1 });
