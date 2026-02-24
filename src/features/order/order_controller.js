@@ -4,7 +4,6 @@ import Review from "./../review/review_model.js";
 import Order from "./order_model.js";
 import Address from "./../address/address_model.js";
 import Cart from "../cart/cart_model.js";
-
 import { sendCustomNotificationService } from "./../../common/config/notification_service.js";
 
 const OrderController = {
@@ -106,13 +105,6 @@ const OrderController = {
         shippedAt: null,
         deliveredAt: null,
       });
-
-      /* 6️⃣ Reduce product stock */
-      for (const item of orderItems) {
-        await Product.findByIdAndUpdate(item.product, {
-          $inc: { stock: -item.quantity },
-        });
-      }
 
       /* 7️⃣ Clear cart */
       cart.items = [];
@@ -250,57 +242,6 @@ const OrderController = {
     }
   },
 
-  // updateOrderStatus: async (req, res, next) => {
-  //   try {
-  //     const { orderId } = req.params;
-  //     const { status } = req.body; // pending | confirmed | shipped | delivered | cancelled
-
-  //     // Validate status
-  //     const allowedStatuses = [
-  //       "pending",
-  //       "confirmed",
-  //       "shipped",
-  //       "delivered",
-  //       "cancelled",
-  //     ];
-  //     if (!allowedStatuses.includes(status)) {
-  //       return res.status(400).json({ message: "Invalid status value." });
-  //     }
-
-  //     // Find the order
-  //     const order = await Order.findById(orderId);
-  //     if (!order) {
-  //       return res.status(404).json({ message: "Order not found." });
-  //     }
-
-  //     // Update timestamps based on status
-  //     if (status === "shipped" && order.status !== "shipped") {
-  //       order.shippedAt = new Date();
-  //     } else if (status === "delivered" && order.status !== "delivered") {
-  //       order.deliveredAt = new Date();
-  //     }
-
-  //     // Update status
-  //     order.status = status;
-
-  //     // Save updated order
-  //     const updatedOrder = await order.save();
-
-  //     // Check if a review exists for this order
-  //     const review = await Review.findOne({ orderId: updatedOrder._id });
-  //     const hasReviewed = !!review;
-  //     const canReview = updatedOrder.status === "delivered" && !hasReviewed;
-
-  //     // Return response including dynamic review flags
-  //     res.status(200).json({
-  //       status: "success",
-  //       data: { ...updatedOrder.toObject(), hasReviewed, canReview },
-  //     });
-  //   } catch (error) {
-  //     next(error);
-  //   }
-  // },
-
   updateOrderStatus: async (req, res, next) => {
     try {
       const { orderId } = req.params;
@@ -325,48 +266,73 @@ const OrderController = {
 
       const previousStatus = order.status;
 
-      // 🔹 Handle shipped timestamp
+      // 🔹 Allowed transitions
+      const statusTransitions = {
+        pending: ["confirmed", "cancelled"],
+        confirmed: ["shipped", "cancelled"],
+        shipped: ["delivered", "cancelled"],
+        delivered: ["cancelled"], // only allowed to cancel after delivery
+        cancelled: [], // cannot change once cancelled
+      };
+
+      if (!statusTransitions[previousStatus].includes(status)) {
+        return res.status(400).json({
+          message: `Cannot change status from '${previousStatus}' to '${status}'.`,
+        });
+      }
+
+      // 🔹 Handle timestamps
       if (status === "shipped" && previousStatus !== "shipped") {
         order.shippedAt = new Date();
       }
 
-      // 🔥 CASE 1: Move TO delivered → Reduce stock
       if (status === "delivered" && previousStatus !== "delivered") {
         order.deliveredAt = new Date();
 
+        // 🔹 Reduce stock atomically
         for (const item of order.orderItems) {
-          await Product.findByIdAndUpdate(item.product, {
-            $inc: {
-              stock: -item.quantity,
-              units_sold: item.quantity,
+          const updatedProduct = await Product.findOneAndUpdate(
+            {
+              _id: item.product,
+              stock: { $gte: item.quantity }, // ensure stock not negative
             },
-          });
+            { $inc: { stock: -item.quantity, units_sold: item.quantity } },
+            { new: true },
+          );
+
+          if (!updatedProduct) {
+            return next(
+              new AppError(`Insufficient stock for ${item.title}`, 400),
+            );
+          }
         }
+
+        await sendCustomNotificationService({
+          userId: order.userInfo.userId,
+          safeTitle: "Order Delivered",
+          safeBody: "Your order has been delivered successfully.",
+          safeType: "order",
+        });
       }
 
-      // 🔥 CASE 2: Move FROM delivered → cancelled → Restore stock
+      // 🔹 Restore stock if delivered → cancelled
       if (previousStatus === "delivered" && status === "cancelled") {
         for (const item of order.orderItems) {
           await Product.findByIdAndUpdate(item.product, {
-            $inc: {
-              stock: item.quantity,
-              units_sold: -item.quantity,
-            },
+            $inc: { stock: item.quantity, units_sold: -item.quantity },
           });
         }
       }
 
+      // 🔹 Update order status
       order.status = status;
-
       const updatedOrder = await order.save();
 
       // 🔹 Review flags
       const reviews = await Review.find({ orderId: updatedOrder._id });
-
       const reviewedProductIds = reviews.map((r) => r.product.toString());
 
       const orderWithReviewFlags = updatedOrder.toObject();
-
       orderWithReviewFlags.orderItems = orderWithReviewFlags.orderItems.map(
         (item) => ({
           ...item,
@@ -385,50 +351,5 @@ const OrderController = {
       next(error);
     }
   },
-
-  // updateOrderStatus: async (req, res, next) => {
-  //   try {
-  //     const { orderId } = req.params;
-  //     const { status } = req.body; // new status: pending | shipped | delivered
-
-  //     // Validate status
-  //     const allowedStatuses = [
-  //       "pending",
-  //       "confirmed",
-  //       "shipped",
-  //       "delivered",
-  //       "cancelled",
-  //     ];
-  //     if (!allowedStatuses.includes(status)) {
-  //       return res.status(400).json({ message: "Invalid status value." });
-  //     }
-
-  //     // Find the order
-  //     const order = await Order.findById(orderId);
-  //     if (!order) {
-  //       return res.status(404).json({ message: "Order not found." });
-  //     }
-
-  //     // Update timestamps based on status
-  //     if (status === "shipped" && order.status !== "shipped") {
-  //       order.shippedAt = new Date();
-  //     } else if (status === "delivered" && order.status !== "delivered") {
-  //       order.deliveredAt = new Date();
-  //     }
-
-  //     // Update status
-  //     order.status = status;
-
-  //     // Save the updated order
-  //     const updatedOrder = await order.save();
-
-  //     res.status(200).json({
-  //       message: "Order status updated successfully",
-  //       order: updatedOrder,
-  //     });
-  //   } catch (error) {
-  //     next(error);
-  //   }
-  // },
 };
 export default OrderController;

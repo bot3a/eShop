@@ -122,7 +122,9 @@ const ProductController = {
     if (price !== undefined) product.price = Number(price);
     if (discount !== undefined) product.discount = Number(discount);
     if (stock !== undefined) product.stock = Number(stock);
-    if (is_featured !== undefined) product.is_featured = Boolean(is_featured);
+    if (is_featured !== undefined) {
+      product.is_featured = is_featured === "1";
+    }
 
     if (categoryId) {
       product.category = categoryId;
