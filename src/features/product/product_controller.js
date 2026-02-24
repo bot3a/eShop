@@ -262,8 +262,8 @@ const ProductController = {
           avgPrice: { $avg: "$price" },
           minPrice: { $min: "$price" },
           maxPrice: { $max: "$price" },
-          totalRevenue: { $sum: { $multiply: ["$price", "$unitsSold"] } },
-          totalUnitsSold: { $sum: "$unitsSold" },
+          totalRevenue: { $sum: { $multiply: ["$price", "$units_sold"] } },
+          totalUnitsSold: { $sum: "$units_sold" },
         },
       },
     ]);
