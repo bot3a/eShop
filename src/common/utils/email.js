@@ -1,7 +1,7 @@
 import { createTransport } from "nodemailer";
 
-// import dotenv from "dotenv";
-// dotenv.config({ path: ".env" });
+import dotenv from "dotenv";
+dotenv.config({ path: ".env" });
 
 const NODE_ENV = process.env.NODE_ENV || "development";
 

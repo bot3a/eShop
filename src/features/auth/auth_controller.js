@@ -57,10 +57,24 @@ const generateAndSendOTP = async (user, method = "email") => {
 
   console.log(otp);
 
+  // await sendEmail({
+  //   email: user.email,
+  //   subject: "Your Email Verification OTP",
+  //   message: `Your OTP is ${otp}. It will expire in 10 minutes.`,
+  // });
+
   await sendEmail({
     email: user.email,
     subject: "Your Email Verification OTP",
-    message: `Your OTP is ${otp}. It will expire in 10 minutes.`,
+    message: `
+Hello,
+
+Your OTP is ${otp}. It will expire in 10 minutes.
+
+Click the link below to verify your email automatically:
+
+https://bot3a.github.io/verifyEmail?email=${user.email}&otp=${otp}
+`,
   });
 
   return otp;
@@ -221,7 +235,7 @@ const AuthController = {
 
     const now = new Date();
 
-    // Atomic operation: only update lastOTPRequestedAt if cooldown passed or not set
+    // Attempt atomic update if cooldown passed or not set
     const user = await User.findOneAndUpdate(
       {
         email,
@@ -231,37 +245,47 @@ const AuthController = {
         ],
       },
       { lastOTPRequestedAt: now },
-      { new: true }, // return the updated document
+      { new: true },
     );
 
     if (!user) {
-      // Fetch user to calculate remaining wait time
+      // Fetch user to check remaining cooldown
       const existingUser = await User.findOne({ email });
 
-      if (!existingUser.lastOTPRequestedAt) {
-        // Should not happen, but fallback
+      if (!existingUser) {
+        return next(new AppError("No user found with this email.", 404));
+      }
+
+      const lastRequested = existingUser.lastOTPRequestedAt
+        ? new Date(existingUser.lastOTPRequestedAt).getTime()
+        : 0;
+
+      const waitTime = Math.ceil(
+        (cooldownPeriod - (now.getTime() - lastRequested)) / 1000,
+      );
+
+      if (waitTime > 0) {
         return next(
           new AppError(
-            "Please wait a few seconds before requesting a new OTP.",
+            `Please wait ${waitTime} seconds before requesting a new OTP.`,
             429,
           ),
         );
       }
 
-      const lastRequested = new Date(existingUser.lastOTPRequestedAt).getTime();
-      const waitTime = Math.ceil(
-        (cooldownPeriod - (now.getTime() - lastRequested)) / 1000,
-      );
+      // Edge case: lastOTPRequestedAt exists but cooldown passed
+      existingUser.lastOTPRequestedAt = now;
+      await existingUser.save();
 
-      return next(
-        new AppError(
-          `Please wait ${waitTime} seconds before requesting a new OTP.`,
-          429,
-        ),
-      );
+      await generateAndSendOTP(existingUser);
+
+      return res.status(200).json({
+        status: "success",
+        message: "OTP sent successfully. Cooldown started.",
+      });
     }
 
-    // Send OTP after cooldown is confirmed
+    // Send OTP if atomic update succeeded
     await generateAndSendOTP(user);
 
     res.status(200).json({
