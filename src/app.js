@@ -48,14 +48,12 @@ setupRoutes(app);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../client/build")));
-  app.use((req, res, _next) => {
+
+  app.get("*", (req, res) => {
     res.sendFile(path.join(__dirname, "../client/build", "index.html"));
   });
 }
 
-// app.use((_req, _res, next) => {
-//   next(new AppError("Cannot find route.", 404));
-// });
 
 app.use(globalErrorHandler);
 
