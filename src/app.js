@@ -47,13 +47,19 @@ app.get("/api/v1/health", (_req, res) => res.send("Server is running!"));
 setupRoutes(app);
 
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../client/build")));
+  const buildPath = path.join(__dirname, "../client/build");
 
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../client/build", "index.html"));
+  // serve static files
+  app.use(express.static(buildPath));
+
+  // SPA fallback (SAFE + MODERN)
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+    if (req.originalUrl.startsWith("/api")) return next();
+
+    res.sendFile(path.join(buildPath, "index.html"));
   });
 }
-
 
 app.use(globalErrorHandler);
 
