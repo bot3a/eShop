@@ -5,23 +5,19 @@ class APIFeatures {
     this.page = 1;
     this.limit = 10;
     this.totalCount = 0;
-    this.searchFields = ["name", "slug", "description"]; // Default search fields
+    this.searchFields = ["name", "slug", "description"];
   }
 
-  // Add search method
   search(searchFields = ["name", "slug", "description"]) {
     if (this.queryString.q) {
       const searchQuery = this.queryString.q;
       this.searchFields = searchFields;
 
-      // Create regex search for each field
       const searchConditions = this.searchFields.map((field) => ({
         [field]: { $regex: searchQuery, $options: "i" },
       }));
 
-      // Apply search to existing filter
       if (searchConditions.length > 0) {
-        // If query already has filter conditions, use $and to combine
         const existingFilter = this.query._conditions || {};
         if (Object.keys(existingFilter).length > 0) {
           this.query = this.query.find({
@@ -35,15 +31,13 @@ class APIFeatures {
     return this;
   }
 
-  // Update filter method to work with search
   filter() {
     const queryObj = { ...this.queryString };
-    const excludedFields = ["page", "limit", "sort", "fields", "q"]; // Add 'q'
+    const excludedFields = ["page", "limit", "sort", "fields", "q"];
     excludedFields.forEach((el) => delete queryObj[el]);
 
     const filterObj = {};
 
-    // Transform queries like ratings.average[gte]=2.5 into MongoDB format
     Object.keys(queryObj).forEach((key) => {
       const value = queryObj[key];
       const match = key.match(/^(.+)\[(gte|gt|lte|lt)\]$/);
@@ -56,7 +50,6 @@ class APIFeatures {
       }
     });
 
-    // Apply filter if it exists
     if (Object.keys(filterObj).length > 0) {
       this.query = this.query.find(filterObj);
     }
@@ -64,16 +57,13 @@ class APIFeatures {
     return this;
   }
 
-  // Update computeTotalCount to handle search
   async computeTotalCount(model) {
-    // Build filter from query string (excluding pagination/sort fields)
     const queryObj = { ...this.queryString };
     const excludedFields = ["page", "limit", "sort", "fields"];
     excludedFields.forEach((el) => delete queryObj[el]);
 
     let filterObj = {};
 
-    // Handle regular filters
     Object.keys(queryObj).forEach((key) => {
       const value = queryObj[key];
       const match = key.match(/^(.+)\[(gte|gt|lte|lt)\]$/);
@@ -82,12 +72,10 @@ class APIFeatures {
         const operator = `$${match[2]}`;
         filterObj[field] = { [operator]: parseFloat(value) };
       } else if (key !== "q") {
-        // Don't include 'q' in regular filter
         filterObj[key] = value;
       }
     });
 
-    // Handle search separately if 'q' exists
     if (this.queryString.q) {
       const searchConditions = this.searchFields.map((field) => ({
         [field]: { $regex: this.queryString.q, $options: "i" },
@@ -95,7 +83,6 @@ class APIFeatures {
 
       if (searchConditions.length > 0) {
         if (Object.keys(filterObj).length > 0) {
-          // Combine search with other filters
           filterObj = {
             $and: [filterObj, { $or: searchConditions }],
           };

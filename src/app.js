@@ -7,7 +7,6 @@ import morgan from "morgan";
 import mongoSanitize from "mongo-sanitize";
 
 import { setupRoutes } from "./index.js";
-import AppError from "./common/utils/appError.js";
 import globalErrorHandler from "./common/controllers/error_controller.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -49,10 +48,8 @@ setupRoutes(app);
 if (process.env.NODE_ENV === "production") {
   const buildPath = path.join(__dirname, "../client/build");
 
-  // serve static files
   app.use(express.static(buildPath));
 
-  // SPA fallback (SAFE + MODERN)
   app.use((req, res, next) => {
     if (req.method !== "GET") return next();
     if (req.originalUrl.startsWith("/api")) return next();

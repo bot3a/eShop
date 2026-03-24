@@ -38,14 +38,12 @@ const CartController = {
     const userId = req.user.id;
     const { product, quantity } = req.body;
 
-    // 1️⃣ If product already exists in cart → increment quantity
     let cart = await Cart.findOneAndUpdate(
       { user: userId, "items.product": product._id },
       { $inc: { "items.$.quantity": quantity } },
       { new: true },
     );
 
-    // 2️⃣ If product not in cart → push new item
     if (!cart) {
       cart = await Cart.findOneAndUpdate(
         { user: userId },
@@ -54,13 +52,11 @@ const CartController = {
       );
     }
 
-    // 3️⃣ Populate product details
     await cart.populate({
       path: "items.product",
       populate: { path: "category", select: "title" },
     });
 
-    // 4️⃣ Get the updated cart item
     const cartItem = cart.items.find(
       (item) => item.product._id.toString() === product.toString(),
     );
@@ -83,14 +79,12 @@ const CartController = {
     let cart;
 
     if (quantity === 0) {
-      // Remove item from cart
       cart = await Cart.findOneAndUpdate(
         { user: userId },
         { $pull: { items: { product } } },
         { new: true },
       );
     } else {
-      // Update quantity
       cart = await Cart.findOneAndUpdate(
         { user: userId, "items.product": product },
         { $set: { "items.$.quantity": quantity } },
@@ -108,7 +102,6 @@ const CartController = {
       });
     }
 
-    // Populate product and category
     cart = await cart.populate({
       path: "items.product",
       populate: { path: "category", select: "title" },

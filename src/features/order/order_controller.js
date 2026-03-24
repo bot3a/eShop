@@ -127,8 +127,6 @@ const OrderController = {
     }
   },
 
-  /* ////////////////////////////////////////////////////////////////////////////////////////////// */
-
   getOrderByPaymentIntent: async (req, res, next) => {
     try {
       const { paymentIntentId } = req.params;
@@ -182,13 +180,9 @@ const OrderController = {
   },
 
   getAllOrders: async (req, res, next) => {
-    // console.log("Logged in user:", req.user);
-
     const orders = await Order.find({}).sort({
       created_at: -1,
     });
-
-    // console.log("Orders found:", orders);
 
     const orderIds = orders.map((order) => order._id);
 
@@ -215,8 +209,7 @@ const OrderController = {
 
   getOrderById: async (req, res, next) => {
     try {
-      const { orderId } = req.params; // must match route
-      // console.log("Fetching order ID:", orderId);
+      const { orderId } = req.params;
 
       const order = await Order.findOne({
         _id: orderId,
@@ -265,14 +258,12 @@ const OrderController = {
       }
 
       const previousStatus = order.status;
-
-      // 🔹 Allowed transitions
       const statusTransitions = {
         pending: ["confirmed", "cancelled"],
         confirmed: ["shipped", "cancelled"],
         shipped: ["delivered", "cancelled"],
-        delivered: ["cancelled"], // only allowed to cancel after delivery
-        cancelled: [], // cannot change once cancelled
+        delivered: ["cancelled"],
+        cancelled: [],
       };
 
       if (!statusTransitions[previousStatus].includes(status)) {
@@ -281,7 +272,6 @@ const OrderController = {
         });
       }
 
-      // 🔹 Handle timestamps
       if (status === "shipped" && previousStatus !== "shipped") {
         order.shippedAt = new Date();
       }
@@ -289,12 +279,11 @@ const OrderController = {
       if (status === "delivered" && previousStatus !== "delivered") {
         order.deliveredAt = new Date();
 
-        // 🔹 Reduce stock atomically
         for (const item of order.orderItems) {
           const updatedProduct = await Product.findOneAndUpdate(
             {
               _id: item.product,
-              stock: { $gte: item.quantity }, // ensure stock not negative
+              stock: { $gte: item.quantity },
             },
             { $inc: { stock: -item.quantity, units_sold: item.quantity } },
             { new: true },
@@ -315,7 +304,6 @@ const OrderController = {
         });
       }
 
-      // 🔹 Restore stock if delivered → cancelled
       if (previousStatus === "delivered" && status === "cancelled") {
         for (const item of order.orderItems) {
           await Product.findByIdAndUpdate(item.product, {
@@ -324,11 +312,9 @@ const OrderController = {
         }
       }
 
-      // 🔹 Update order status
       order.status = status;
       const updatedOrder = await order.save();
 
-      // 🔹 Review flags
       const reviews = await Review.find({ orderId: updatedOrder._id });
       const reviewedProductIds = reviews.map((r) => r.product.toString());
 

@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 
 dotenv.config({ path: "./.env" });
 
-// Check if the Firebase service account variable exists
 const base64Key = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
 
 if (!base64Key) {

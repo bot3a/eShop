@@ -144,10 +144,6 @@ const AddressController = {
       }
     }
 
-    await Address.find({ user: req.user._id }).sort({
-      createdAt: -1,
-    });
-
     res.status(204).send();
   }),
 
