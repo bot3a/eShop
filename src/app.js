@@ -53,9 +53,9 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.use((_req, _res, next) => {
-  next(new AppError("Cannot find route.", 404));
-});
+// app.use((_req, _res, next) => {
+//   next(new AppError("Cannot find route.", 404));
+// });
 
 app.use(globalErrorHandler);
 

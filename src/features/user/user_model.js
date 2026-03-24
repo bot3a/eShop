@@ -130,10 +130,10 @@ userSchema.pre("validate", function (next) {
   next();
 });
 
-userSchema.pre(/^find/, function (next) {
-  this.find({ active: { $ne: false } });
-  next();
-});
+// userSchema.pre(/^find/, function (next) {
+//   this.find({ active: { $ne: false } });
+//   next();
+// });
 
 userSchema.methods.createVerificationOTP = function (method = "email") {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();

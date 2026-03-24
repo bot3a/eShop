@@ -191,7 +191,7 @@ const AuthController = {
   }),
 
   googleSignUp: catchAsync(async (req, res, next) => {
-    const { uid, name, email, photoUrl, phoneNumber } = req.body;
+    const { uid, name, email, photoURL, phoneNumber } = req.body;
 
     if (!uid || !email || !name) {
       return next(new AppError("UID, name, and email are required", 400));
@@ -207,7 +207,7 @@ const AuthController = {
         name,
         email: normalizedEmail,
         phoneNumber,
-        photo: photoUrl,
+        photo: photoURL,
         authProvider: "google",
         firebaseUid: uid,
         is_verified: true,
@@ -217,14 +217,13 @@ const AuthController = {
       user.authProvider = "google";
       user.is_verified = true;
 
-      if (photoUrl) user.photo = photoUrl;
+      if (photoURL) user.photo = photoURL;
 
       await user.save({ validateBeforeSave: false });
     }
     if (!user.active) {
       return next(new AppError("Account is disabled.", 429));
     }
-
     createSendToken(user, 200, res);
   }),
 
