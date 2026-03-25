@@ -134,6 +134,9 @@ const AuthController = {
     if (!user.is_verified) {
       return next(new AppError("Please verify your account first", 403));
     }
+    if (!user.active) {
+      return next(new AppError("User is inactive", 401));
+    }
 
     createSendToken(user, 200, res);
   }),
@@ -235,13 +238,23 @@ const AuthController = {
 
   resendOTP: catchAsync(async (req, res, next) => {
     const { email } = req.body;
+
+    let user = await User.findOne({ email }).select("+password");
+
+    if (!user.is_verified) {
+      return next(new AppError("Please verify your account first", 403));
+    }
+
+    if (!user.active) {
+      return next(new AppError("User is inactive", 401));
+    }
     const cooldownPeriod =
       process.env.NODE_ENV === "development" ? 5 * 1000 : 10 * 1000;
 
     const now = new Date();
 
     // Attempt atomic update if cooldown passed or not set
-    const user = await User.findOneAndUpdate(
+    user = await User.findOneAndUpdate(
       {
         email,
         $or: [
