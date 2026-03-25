@@ -86,6 +86,9 @@ const AuthController = {
     if (!refresh_token) {
       return next(new AppError("No token Provided", 401));
     }
+    if (!user.active) {
+      return next(new AppError("User is inactive", 403));
+    }
     const user = await User.findOne({ refresh_token });
     if (!user) {
       return next(new AppError("Invalid User Token", 401));
