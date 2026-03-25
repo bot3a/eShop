@@ -82,16 +82,19 @@ https://bot3a.github.io/verifyEmail?email=${user.email}&otp=${otp}
 
 const AuthController = {
   token: catchAsync(async (req, res, next) => {
+    console.log(req.body);
     const refresh_token = req.body.refresh_token;
     if (!refresh_token) {
       return next(new AppError("No token Provided", 401));
     }
-    if (!user.active) {
-      return next(new AppError("User is inactive", 403));
-    }
+
     const user = await User.findOne({ refresh_token });
+
     if (!user) {
       return next(new AppError("Invalid User Token", 401));
+    }
+    if (!user.active) {
+      return next(new AppError("User is inactive", 403));
     }
 
     try {
