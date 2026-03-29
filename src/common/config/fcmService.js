@@ -6,12 +6,6 @@ if (!admin.apps.length) {
   });
 }
 
-/**
- * Send push notification via FCM
- * @param {string} fcmToken - Device token
- * @param {object} payload - { title?: string, body?: string, type?: string }
- * @returns {Promise<string>} - Message ID returned by FCM
- */
 export async function sendPushNotification(fcmToken, payload = {}) {
   if (!fcmToken || typeof fcmToken !== "string") {
     throw new Error("Valid FCM token is required");

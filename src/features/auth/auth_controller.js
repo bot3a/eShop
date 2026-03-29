@@ -434,6 +434,8 @@ const AuthController = {
   /* ///////////////////NEED REFACTOR/////////////////////////////////////////////// */
 
   protect: catchAsync(async (req, res, next) => {
+    console.log(req);
+
     // 1) Get token from headers
     let access_token;
     if (
@@ -472,6 +474,9 @@ const AuthController = {
       return next(
         new AppError("User for this access token no longer exists!", 401),
       );
+    }
+    if (!currentUser.active) {
+      return next(new AppError("User is inactive", 401));
     }
 
     // 4) Check if user changed password after token was issued

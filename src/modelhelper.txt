@@ -1,0 +1,182 @@
+MODELS
+
+📄 address_model.js
+   🔗 ref: "User"
+   📌 user: { type: Schema
+   📌 address_line1: { type: String
+   📌 address_line2: { type: String
+   📌 city: { type: String
+   📌 state: { type: String
+   📌 postal_code: { type: String
+   // 📌 country: { type: String
+   📌 optional_remarks: { type: String
+   📌 is_default: { type: Boolean
+
+📄 cart_model.js
+   🔗 ref: "Product"
+   🔗 ref: "User"
+   📌 product: {
+      type: Schema
+   📌 quantity: {
+      type: Number
+   📌 user: {
+      type: Schema
+
+
+📄 notification_model.js
+   🔗 ref: "User"
+   📌 user: {
+      type: Schema
+   📌 title: {
+      type: String
+   📌 body: {
+      type: String
+   📌 type: {
+      type: String
+   // 📌 read: {
+      type: Boolean
+   📌 sent_at: {
+      type: Date
+
+📄 product_model.js
+   🔗 ref: "Category"
+   🔗 ref: "Review"
+   //📌 color: { type: String
+   // 📌 size: { type: String
+   📌 title: {
+      type: String
+   📌 slug: {
+      type: String
+   📌 description: {
+      type: String
+   📌 price: {
+      type: Number
+   📌 discount: {
+      type: Number
+   📌 stock: {
+      type: Number
+   📌 units_sold: {
+      type: Number
+   📌 ratings: {
+      average: {
+        type: Number
+   📌 quantity: {
+        type: Number
+   📌 is_featured: {
+      type: Boolean
+   📌 category: {
+      type: Schema
+
+📄 review_model.js
+   🔗 ref: "Product"
+   🔗 ref: "User"
+   🔗 ref: "Order"
+   📌 review: {
+      type: String
+   📌 rating: {
+      type: Number
+   📌 product: {
+      type: Schema
+   📌 userId: {
+      type: Schema
+   📌 orderId: {
+      type: Schema
+
+
+📄 order_model.js
+   🔗 ref: "Product"
+   📌 product: {
+    type: Schema
+   📌 title: { type: String
+   📌 price: { type: Number
+   📌 quantity: { type: Number
+   📌 image: { type: String
+   📌 address_line1: { type: String
+   📌 city: { type: String
+   📌 state: { type: String
+   📌 postal_code: { type: String
+   📌 country: { type: String
+   📌 optional_remarks: { type: String
+   📌 userId: { type: String
+   📌 name: { type: String
+   📌 email: { type: String
+   📌 phone: { type: String
+   📌 userInfo: {
+      type: userInfoSchema
+   📌 shippingAddress: {
+      type: shippingAddressSchema
+   📌 paymentMethod: {
+      type: String
+   📌 isPaid: {
+      type: Boolean
+   📌 itemsPrice: {
+      type: Number
+   📌 shippingPrice: {
+      type: Number
+   📌 taxPrice: {
+      type: Number
+   📌 totalPrice: {
+      type: Number
+   📌 status: {
+      type: String
+
+
+📄 user_model.js
+   📌 name: {
+      type: String
+   📌 email: {
+      type: String
+   📌 phoneNumber: {
+      type: String
+   📌 role: {
+      type: String
+   📌 authProvider: {
+      type: String
+   📌 firebaseUid: {
+      type: String
+   📌 stripeCustomerId: {
+      type: String
+   📌 password: {
+      type: String
+   📌 passwordConfirm: {
+      type: String
+   // 📌 lastOTPRequestedAt: {
+      type: Date
+   // 📌 verificationMethod: {
+      type: String
+   📌 is_verified: {
+      type: Boolean
+   📌 access_token: {
+      type: String
+   📌 refresh_token: {
+      type: String
+   📌 active: {
+      type: Boolean
+
+📄 wishlist_model.js
+   🔗 ref: "User"
+   🔗 ref: "Product"
+   📌 user: {
+      type: Schema
+
+
+
+
+
+/* //////////////////////////////////////////////////////////////////////////////*/
+//NO NEED 
+
+📄 category_model.js
+   📌 title: {
+      type: String
+   📌 image: {
+      type: String
+
+📄 fcm_model.js
+   🔗 ref: "User"
+   📌 user: {
+    type: Schema
+   📌 fcmToken: {
+    type: String
+   📌 updatedAt: {
+    type: Date
