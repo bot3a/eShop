@@ -15,6 +15,7 @@ const factory = {
       if (!doc) {
         return next(new AppError("Document doesnt exists!", 404));
       }
+      console.log("HELLO");
       return res.status(200).json({
         status: "success",
         users_count: doc.length,

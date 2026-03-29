@@ -86,19 +86,37 @@ const UserController = {
     createSendToken(user, 200, res);
   }),
 
-  deleteUser: catchAsync(async (req, res) => {
-    await User.findByIdAndUpdate(req.params.id, { active: false });
-    res.status(204).json({
-      status: "success",
-      data: null,
-    });
-  }),
-
   getAllUsers: factory.getAllUsers(User, "+active"),
 
   activeUser: catchAsync(async (req, res) => {
-    await User.findByIdAndUpdate(req.user.id, { active: true });
+    const userId = req.params.id;
+    console.log("Activating user:", userId);
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { active: true },
+      { new: true, runValidators: true },
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        status: "fail",
+        message: "User not found",
+      });
+    }
+
+    console.log("User activated:", updatedUser);
+
     res.status(200).json({
+      status: "success",
+      data: updatedUser,
+    });
+  }),
+
+  deleteUser: catchAsync(async (req, res) => {
+    console.log("checking");
+    await User.findByIdAndUpdate(req.params.id, { active: false });
+    res.status(204).json({
       status: "success",
       data: null,
     });
