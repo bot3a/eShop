@@ -105,7 +105,7 @@ const UserController = {
       });
     }
 
-    console.log("User activated:", updatedUser);
+    console.log("User activated:", userId);
 
     res.status(200).json({
       status: "success",

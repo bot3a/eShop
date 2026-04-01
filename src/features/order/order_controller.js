@@ -278,6 +278,9 @@ const OrderController = {
 
       if (status === "delivered" && previousStatus !== "delivered") {
         order.deliveredAt = new Date();
+        if (order.paymentMethod === "COD") {
+          order.isPaid = true;
+        }
 
         for (const item of order.orderItems) {
           const updatedProduct = await Product.findOneAndUpdate(

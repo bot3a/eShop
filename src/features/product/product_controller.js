@@ -4,6 +4,7 @@ import AppError from "./../../common/utils/appError.js";
 import factory from "./../../common/controllers/handler_controller.js";
 import cloudinary from "../../common/config/cloudinary.js";
 import APIFeatures from "./../../common/utils/api_features.js";
+import Order from "../order/order_model.js";
 
 const ProductController = {
   validateProductFields: (req, res, next) => {
@@ -157,7 +158,7 @@ const ProductController = {
   }),
 
   getProductStats: catchAsync(async (req, res, next) => {
-    const stats = await Product.aggregate([
+    const productStats = await Product.aggregate([
       {
         $group: {
           _id: null,
@@ -167,16 +168,45 @@ const ProductController = {
           avgPrice: { $avg: "$price" },
           minPrice: { $min: "$price" },
           maxPrice: { $max: "$price" },
-          totalRevenue: { $sum: { $multiply: ["$price", "$units_sold"] } },
-          totalUnitsSold: { $sum: "$units_sold" },
+          totalUnitsSoldFromProduct: { $sum: "$units_sold" },
         },
       },
     ]);
 
+    const orderStats = await Order.aggregate([
+      { $match: { status: "delivered" } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$totalPrice" },
+          totalUnitsSoldFromOrders: { $sum: { $sum: "$orderItems.quantity" } },
+          totalOrders: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const totalUnitsSold =
+      (productStats[0]?.totalUnitsSoldFromProduct || 0) +
+      (orderStats[0]?.totalUnitsSoldFromOrders || 0);
+
     res.status(200).json({
       status: "success",
       data: {
-        stats: stats[0] || {},
+        stats: {
+          numProducts: productStats[0]?.numProducts || 0,
+          numRatings: productStats[0]?.numRatings || 0,
+          avgRating: productStats[0]?.avgRating || 0,
+          avgPrice: productStats[0]?.avgPrice || 0,
+          minPrice: productStats[0]?.minPrice || 0,
+          maxPrice: productStats[0]?.maxPrice || 0,
+          totalUnitsSoldFromProduct:
+            productStats[0]?.totalUnitsSoldFromProduct || 0,
+          totalUnitsSoldFromOrders:
+            orderStats[0]?.totalUnitsSoldFromOrders || 0,
+          totalUnitsSold,
+          totalRevenue: orderStats[0]?.totalRevenue || 0,
+          totalOrders: orderStats[0]?.totalOrders || 0,
+        },
       },
     });
   }),
