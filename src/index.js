@@ -1,4 +1,4 @@
-// routes/index.js
+
 import AuthRoutes from "./features/auth/auth_routes.js";
 import UserRoutes from "./features/user/user_routes.js";
 import CategoryRoutes from "./features/category/category_routes.js";

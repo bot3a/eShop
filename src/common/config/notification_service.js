@@ -10,12 +10,7 @@ export const sendCustomNotificationService = async ({
 }) => {
   if (!userId) return null;
 
-  const notification = await Notification.create({
-    user: userId,
-    title: safeTitle,
-    body: safeBody,
-    type: safeType,
-  });
+
 
   const fcmTokenDoc = await FCMToken.findOne({ user: userId });
   if (fcmTokenDoc?.fcmToken) {

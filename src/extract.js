@@ -16,13 +16,12 @@ function scan(dirPath) {
 
       console.log("\n📄", file);
 
-      // Extract refs
+
       const refs = content.match(/ref:\s*"(.*?)"/g);
       if (refs) {
         refs.forEach((r) => console.log("   🔗", r));
       }
 
-      // Extract fields
       const fields = content.match(/(\w+):\s*{[^}]*type:\s*(\w+)/g);
       if (fields) {
         fields.forEach((f) => console.log("   📌", f));
@@ -32,6 +31,3 @@ function scan(dirPath) {
 }
 
 scan(dir);
-
-
-/* ////////////////////////////////////////////////////////////////////////////////////////////// */

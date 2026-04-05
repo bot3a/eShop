@@ -57,12 +57,6 @@ const generateAndSendOTP = async (user, method = "email") => {
 
   console.log(otp);
 
-  // await sendEmail({
-  //   email: user.email,
-  //   subject: "Your Email Verification OTP",
-  //   message: `Your OTP is ${otp}. It will expire in 10 minutes.`,
-  // });
-
   await sendEmail({
     email: user.email,
     subject: "Your Email Verification OTP",
@@ -209,7 +203,6 @@ const AuthController = {
 
     let user = await User.findOne({ email: normalizedEmail });
 
-    // 🆕 CREATE GOOGLE USER
     if (!user) {
       user = await User.create({
         name,
@@ -238,22 +231,20 @@ const AuthController = {
   resendOTP: catchAsync(async (req, res, next) => {
     const { email } = req.body;
 
-    let user = await User.findOne({ email }).select("+password");
+    const cooldownPeriod =
+      process.env.NODE_ENV === "development" ? 50 * 1000 : 100 * 1000;
+    const now = Date.now();
 
-    if (!user.is_verified) {
-      return next(new AppError("Please verify your account first", 403));
+    let user = await User.findOne({ email }).select("+lastOTPRequestedAt");
+
+    if (!user) {
+      return next(new AppError("No user found with this email.", 404));
     }
-
     if (!user.active) {
       return next(new AppError("User is inactive", 401));
     }
-    const cooldownPeriod =
-      process.env.NODE_ENV === "development" ? 5 * 1000 : 10 * 1000;
 
-    const now = new Date();
-
-    // Attempt atomic update if cooldown passed or not set
-    user = await User.findOneAndUpdate(
+    const updatedUser = await User.findOneAndUpdate(
       {
         email,
         $or: [
@@ -261,57 +252,37 @@ const AuthController = {
           { lastOTPRequestedAt: { $exists: false } },
         ],
       },
-      { lastOTPRequestedAt: now },
+      { $set: { lastOTPRequestedAt: new Date() } },
       { new: true },
     );
 
-    if (!user) {
-      // Fetch user to check remaining cooldown
-      const existingUser = await User.findOne({ email });
-
-      if (!existingUser) {
-        return next(new AppError("No user found with this email.", 404));
-      }
-
-      const lastRequested = existingUser.lastOTPRequestedAt
-        ? new Date(existingUser.lastOTPRequestedAt).getTime()
+    if (!updatedUser) {
+      const currentUser = await User.findOne({ email }).select(
+        "+lastOTPRequestedAt",
+      );
+      const lastRequested = currentUser?.lastOTPRequestedAt
+        ? new Date(currentUser.lastOTPRequestedAt).getTime()
         : 0;
 
-      const waitTime = Math.ceil(
-        (cooldownPeriod - (now.getTime() - lastRequested)) / 1000,
+      const diff = now - lastRequested;
+      const waitTime = Math.ceil((cooldownPeriod - diff) / 1000);
+      const displayWait = waitTime > 0 ? waitTime : 0;
+
+      return next(
+        new AppError(
+          `Please wait ${displayWait} seconds before requesting a new OTP.`,
+          429,
+        ),
       );
-
-      if (waitTime > 0) {
-        return next(
-          new AppError(
-            `Please wait ${waitTime} seconds before requesting a new OTP.`,
-            429,
-          ),
-        );
-      }
-
-      // Edge case: lastOTPRequestedAt exists but cooldown passed
-      existingUser.lastOTPRequestedAt = now;
-      await existingUser.save();
-
-      await generateAndSendOTP(existingUser);
-
-      return res.status(200).json({
-        status: "success",
-        message: "OTP sent successfully. Cooldown started.",
-      });
     }
 
-    // Send OTP if atomic update succeeded
-    await generateAndSendOTP(user);
+    await generateAndSendOTP(updatedUser);
 
-    res.status(200).json({
+    return res.status(200).json({
       status: "success",
       message: "OTP sent successfully. Cooldown started.",
     });
   }),
-
-  /* ///////////////////NEED REFACTOR/////////////////////////////////////////////// */
 
   resetPassword: catchAsync(async (req, res, next) => {
     const { email, otp, password, passwordConfirm } = req.body;
@@ -337,19 +308,10 @@ const AuthController = {
       verificationOTPExpires: { $gt: Date.now() },
     });
 
-    // const hashedOTP = crypto.createHash("sha256").update(otp).digest("hex");
-
-    // const user = await User.findOne({
-    //   email,
-    //   passwordResetOTP: hashedOTP,
-    //   passwordResetOTPExpires: { $gt: Date.now() },
-    // });
-
     if (!user) {
       return next(new AppError("Invalid or expired OTP", 400));
     }
 
-    // ✅ Update password
     user.password = password;
     user.passwordConfirm = passwordConfirm;
     user.passwordResetOTP = undefined;
@@ -372,10 +334,9 @@ const AuthController = {
       return next(new AppError("No user found with this email", 404));
     }
 
-    const OTP_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
-    const OTP_EXPIRE_MS = 10 * 60 * 1000; // 10 minutes
+    const OTP_COOLDOWN_MS = 5 * 60 * 1000;
+    const OTP_EXPIRE_MS = 10 * 60 * 1000;
 
-    // ⏱ Cooldown check
     if (
       user.lastOTPRequestedAt &&
       Date.now() - user.lastOTPRequestedAt < OTP_COOLDOWN_MS
@@ -385,13 +346,10 @@ const AuthController = {
       );
     }
 
-    // 🔢 Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 🔒 Hash OTP
     const hashedOTP = crypto.createHash("sha256").update(otp).digest("hex");
 
-    // ✅ Save hashed OTP and expiry in correct fields
     user.verificationOTP = hashedOTP;
     user.verificationOTPExpires = Date.now() + OTP_EXPIRE_MS;
     user.lastOTPRequestedAt = Date.now();
@@ -408,18 +366,11 @@ const AuthController = {
     console.log("OTP (send to email):", otp);
 
     try {
-      // await sendEmail({
-      //   email: user.email,
-      //   subject: "Password Reset OTP",
-      //   message,
-      // });
-
       res.status(200).json({
         status: "success",
         message: "OTP sent to email",
       });
     } catch (err) {
-      // rollback: use correct fields
       user.verificationOTP = undefined;
       user.verificationOTPExpires = undefined;
       user.lastOTPRequestedAt = undefined;
@@ -433,8 +384,6 @@ const AuthController = {
   /* ///////////////////NEED REFACTOR/////////////////////////////////////////////// */
 
   protect: catchAsync(async (req, res, next) => {
-
-    // 1) Get token from headers
     let access_token;
     if (
       req.headers.authorization &&
@@ -447,7 +396,6 @@ const AuthController = {
       return next(new AppError("You are not logged in. Please log in!", 401));
     }
 
-    // 2) Verify token
     let decoded;
     try {
       decoded = await promisify(jwt.verify)(
@@ -461,10 +409,9 @@ const AuthController = {
       if (err.name === "JsonWebTokenError") {
         return next(new AppError("Invalid token. Please log in.", 401));
       }
-      return next(err); // fallback for unexpected errors
+      return next(err);
     }
 
-    // 3) Check if user still exists
     const currentUser = await User.findById(decoded.id).select(
       "+stripeCustomerId",
     );
@@ -477,7 +424,6 @@ const AuthController = {
       return next(new AppError("User is inactive", 401));
     }
 
-    // 4) Check if user changed password after token was issued
     if (currentUser.changePasswordAfter(decoded.iat)) {
       return next(
         new AppError(
@@ -487,7 +433,6 @@ const AuthController = {
       );
     }
 
-    // Grant access
     req.user = currentUser;
     next();
   }),

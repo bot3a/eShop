@@ -56,7 +56,7 @@ const userSchema = new Schema(
       type: String,
       validate: {
         validator: function (el) {
-          if (!this.password) return true; // Google users
+          if (!this.password) return true;
           return el === this.password;
         },
         message: "Passwords do not match",
@@ -65,12 +65,8 @@ const userSchema = new Schema(
 
     passwordChangedAt: Date,
 
-    /* ============== PASSWORD RESET ============== */
-
     passwordResetToken: String,
     passwordResetExpires: Date,
-
-    /* ============== VERIFICATION ============== */
 
     verificationOTP: String,
     verificationOTPExpires: Date,
@@ -89,8 +85,6 @@ const userSchema = new Schema(
       default: false,
     },
 
-    /* ============== TOKENS ============== */
-
     access_token: {
       type: String,
       select: false,
@@ -100,8 +94,6 @@ const userSchema = new Schema(
       type: String,
       select: false,
     },
-
-    /* ============== STATUS ============== */
 
     active: {
       type: Boolean,
@@ -123,27 +115,19 @@ userSchema.pre("save", async function (next) {
 
   next();
 });
+
 userSchema.pre("validate", function (next) {
-  if (this.authProvider === "local" && !this.password) {
+  if (this.isNew && this.authProvider === "local" && !this.password) {
     this.invalidate("password", "Password is required");
   }
   next();
 });
 
-// userSchema.pre(/^find/, function (next) {
-//   this.find({ active: { $ne: false } });
-//   next();
-// });
-
 userSchema.methods.createVerificationOTP = function (method = "email") {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
   this.verificationOTP = createHash("sha256").update(otp).digest("hex");
-
   this.verificationOTPExpires = Date.now() + 60 * 60 * 1000;
   this.verificationMethod = method;
-  this.lastOTPRequestedAt = Date.now();
-
   return otp;
 };
 

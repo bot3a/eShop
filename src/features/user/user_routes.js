@@ -17,7 +17,6 @@ UserRoutes.use(AuthController.restrictTo("admin"));
 UserRoutes.route("/:id")
   .get(UserController.getUser)
   .patch(UserController.updateUser)
-  // .patch(UserController.activeUser)
   .delete(UserController.deleteUser);
 
 UserRoutes.route("/active/:id").patch(UserController.activeUser);

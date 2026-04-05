@@ -1,7 +1,6 @@
 import { Schema, model } from "mongoose";
 import mongooseOptions from "../../common/utils/mongooseOptions.js";
 
-// Order item sub-schema
 const orderItemSchema = new Schema({
   product: {
     type: Schema.Types.ObjectId,
@@ -47,7 +46,6 @@ const orderSchema = new Schema(
       required: true,
     },
 
-    // 🔹 Payment
     paymentMethod: {
       type: String,
       enum: ["COD", "CARD"],
@@ -66,7 +64,6 @@ const orderSchema = new Schema(
       status: String,
     },
 
-    // 🔹 Price breakdown
     itemsPrice: {
       type: Number,
       required: true,

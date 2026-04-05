@@ -36,7 +36,7 @@ const reviewSchema = new Schema(
 
 reviewSchema.index({ product: 1, userId: 1, orderId: 1 }, { unique: true });
 
-// Calculate average rating & quantity
+
 reviewSchema.statics.calcAvgRatings = async function (productId) {
   const stats = await this.aggregate([
     { $match: { product: productId } },
@@ -66,12 +66,11 @@ reviewSchema.statics.calcAvgRatings = async function (productId) {
   }
 };
 
-// Recalculate ratings after save
+
 reviewSchema.post("save", function () {
   this.constructor.calcAvgRatings(this.product);
 });
 
-// Recalculate ratings after findOneAndUpdate or findOneAndDelete
 reviewSchema.pre(/^findOneAnd/, async function (next) {
   this.r = await this.clone().findOne();
   next();
@@ -83,7 +82,6 @@ reviewSchema.post(/^findOneAnd/, async function () {
   }
 });
 
-// Populate user by default
 reviewSchema.pre(/^find/, function (next) {
   this.populate({ path: "userId", select: "name" });
   next();
